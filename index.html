@@ -9,12 +9,24 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+<div id="lockScreen" class="lock-screen hidden">
+  <div class="lock-card">
+    <p class="eyebrow">PRIVATE HOUSEHOLD BUDGET</p>
+    <h2>가계부 잠금</h2>
+    <p id="lockMessage" class="lock-message">비밀번호를 입력하세요.</p>
+    <input id="unlockPassword" type="password" placeholder="비밀번호" autocomplete="current-password">
+    <button id="unlockBtn" class="primary">잠금 해제</button>
+  </div>
+</div>
+
 <div class="app">
 <header>
   <div><p class="eyebrow">MY HOUSEHOLD BUDGET</p><h1>나의 가계부</h1></div>
   <div class="header-actions">
+    <span id="cloudHeaderStatus" class="sync-chip local">로컬 저장</span>
     <button id="installBtn" class="ghost" hidden>앱으로 설치</button>
-    <button id="resetBtn" class="ghost">전체 초기화</button>
+    <button id="lockNowBtn" class="ghost">잠그기</button>
   </div>
 </header>
 
@@ -22,20 +34,61 @@
   <button class="tab active" data-tab="dashboard">대시보드</button>
   <button class="tab" data-tab="transactions">거래 내역</button>
   <button class="tab" data-tab="debts">부채 관리</button>
+  <button class="tab" data-tab="automation">자동화</button>
+  <button class="tab" data-tab="assets">자산 관리</button>
+  <button class="tab" data-tab="settings">설정 / 백업</button>
 </nav>
 
 <section id="dashboard" class="page active">
-  <div class="month-row"><div><h2 id="dashMonth"></h2><p>선택한 달의 가계 현황</p></div><input id="dashMonthInput" type="month"></div>
+  <div class="month-row">
+    <div><h2 id="dashMonth"></h2><p>선택한 달의 가계 현황</p></div>
+    <input id="dashMonthInput" type="month">
+  </div>
+
   <section class="summary">
     <div class="card income"><span>이번 달 수입</span><strong id="incomeTotal">₩0</strong></div>
     <div class="card expense"><span>이번 달 지출</span><strong id="expenseTotal">₩0</strong></div>
     <div class="card balance"><span>이번 달 잔액</span><strong id="balanceTotal">₩0</strong></div>
     <div class="card debt"><span>남은 채무</span><strong id="debtTotal">₩0</strong></div>
   </section>
+
+  <section class="wealth-strip">
+    <div><span>총자산</span><strong id="dashAssetsTotal">₩0</strong></div>
+    <div><span>총부채</span><strong id="dashLiabilitiesTotal">₩0</strong></div>
+    <div class="net-worth"><span>순자산</span><strong id="dashNetWorth">₩0</strong></div>
+    <button class="mini-btn" data-go-tab="assets">자산 관리</button>
+  </section>
+
+  <section id="pendingPanel" class="panel pending-panel">
+    <div class="panel-title-row">
+      <div><h2>입력 대기</h2><p>금액이 달라지는 항목은 실제 금액을 입력한 뒤 확정합니다.</p></div>
+      <span id="pendingCount" class="count-badge">0건</span>
+    </div>
+    <div id="pendingList"></div>
+    <div id="pendingEmpty" class="empty small">입력 대기 항목이 없습니다.</div>
+  </section>
+
   <div class="dashboard-grid">
-    <section class="panel"><h2>카테고리별 지출</h2><div id="categoryBars" class="bars"></div><div id="categoryEmpty" class="empty small">지출 내역이 없습니다.</div></section>
-    <section class="panel"><h2>최근 거래</h2><div id="recentList"></div><div id="recentEmpty" class="empty small">거래 내역이 없습니다.</div></section>
+    <section class="panel">
+      <h2>카테고리별 지출</h2>
+      <div id="categoryBars" class="bars"></div>
+      <div id="categoryEmpty" class="empty small">지출 내역이 없습니다.</div>
+    </section>
+    <section class="panel">
+      <h2>최근 거래</h2>
+      <div id="recentList"></div>
+      <div id="recentEmpty" class="empty small">거래 내역이 없습니다.</div>
+    </section>
   </div>
+
+  <section class="panel schedule-panel">
+    <div class="panel-title-row">
+      <div><h2>다가오는 일정</h2><p>오늘부터 14일 안의 자동화 일정</p></div>
+      <button class="mini-btn" data-go-tab="automation">자동화 관리</button>
+    </div>
+    <div id="upcomingList" class="upcoming-list"></div>
+    <div id="upcomingEmpty" class="empty small">다가오는 일정이 없습니다.</div>
+  </section>
 </section>
 
 <section id="transactions" class="page">
@@ -52,13 +105,33 @@
 <label>내용<input id="description" placeholder="예: 점심 식사" maxlength="60" required></label>
 <label>금액<input id="amount" type="number" min="1" step="1" placeholder="0" required></label>
 <label>결제수단<select id="payment"><option>신용카드</option><option>체크카드</option><option>현금</option><option>계좌이체</option><option>기타</option></select></label>
-<button class="primary">거래 추가</button>
+<div class="form-actions">
+  <button id="transactionSubmitBtn" class="primary">거래 추가</button>
+  <button id="transactionCancelEditBtn" type="button" class="ghost hidden">수정 취소</button>
+</div>
 </form>
 </section>
 <section class="panel">
-<div class="list-head"><div><h2>거래 내역</h2><p id="monthLabel"></p></div>
-<div class="filters"><input id="monthFilter" type="month"><select id="typeFilter"><option value="all">전체</option><option value="expense">지출</option><option value="income">수입</option></select><select id="categoryFilter"><option value="all">카테고리</option></select></div></div>
-<div id="empty" class="empty">거래 내역이 없습니다.</div><div id="transactionList" class="transactions"></div>
+<div class="list-head">
+  <div><h2>거래 내역</h2><p id="monthLabel"></p></div>
+  <div class="export-actions">
+    <button id="exportFilteredCsvBtn" class="mini-btn">필터 결과 CSV</button>
+    <button id="exportAllCsvBtn" class="mini-btn">전체 CSV</button>
+  </div>
+</div>
+<div class="advanced-filters">
+  <input id="searchFilter" type="search" placeholder="내용 · 카테고리 · 결제수단 검색">
+  <input id="monthFilter" type="month">
+  <label class="inline-check"><input id="allMonthsFilter" type="checkbox"><span>전체 기간</span></label>
+  <select id="typeFilter"><option value="all">수입/지출 전체</option><option value="expense">지출</option><option value="income">수입</option></select>
+  <select id="categoryFilter"><option value="all">카테고리 전체</option></select>
+  <select id="paymentFilter"><option value="all">결제수단 전체</option><option>신용카드</option><option>체크카드</option><option>현금</option><option>계좌이체</option><option>기타</option></select>
+  <input id="minAmountFilter" type="number" min="0" step="1" placeholder="최소 금액">
+  <input id="maxAmountFilter" type="number" min="0" step="1" placeholder="최대 금액">
+  <button id="resetTransactionFiltersBtn" type="button" class="mini-btn">필터 초기화</button>
+</div>
+<div id="empty" class="empty">거래 내역이 없습니다.</div>
+<div id="transactionList" class="transactions"></div>
 </section>
 </div>
 </section>
@@ -79,11 +152,175 @@
 </section>
 <section class="panel">
 <div class="debt-head"><div><h2>내 채무</h2><p>상환을 입력하면 잔여 원금이 자동으로 줄어듭니다.</p></div><strong id="allDebtTotal">₩0</strong></div>
-<div id="debtList"></div><div id="debtEmpty" class="empty">등록된 채무가 없습니다.</div>
+<div id="debtList"></div>
+<div id="debtEmpty" class="empty">등록된 채무가 없습니다.</div>
 </section>
 </div>
 </section>
+
+<section id="automation" class="page">
+<div class="automation-layout">
+<section class="panel form-panel">
+  <h2>자동화 일정 추가</h2>
+  <p class="hint">금액이 일정하면 자동등록, 매달 달라지면 입력 대기, 거래로 잡지 않을 일정은 알림만 선택하세요.</p>
+  <form id="automationForm">
+    <label>종류
+      <select id="automationKind">
+        <option value="fixed">정기 지출</option>
+        <option value="salary">정기 수입 / 급여</option>
+        <option value="card">카드 결제일</option>
+        <option value="debt">채무 상환 예정</option>
+      </select>
+    </label>
+    <label>이름<input id="automationName" placeholder="예: 월세 / 급여 / 전기요금 / 현대카드" required></label>
+
+    <label>처리 방식
+      <select id="automationMode">
+        <option value="fixed">금액 고정 · 자동 등록</option>
+        <option value="pending">금액 나중에 입력 · 입력 대기</option>
+        <option value="reminder">알림만</option>
+      </select>
+    </label>
+
+    <div id="automationAmountWrap">
+      <label id="automationAmountLabel">고정 금액<input id="automationAmount" type="number" min="1" step="1" placeholder="0"></label>
+      <p id="automationAmountNote" class="field-note"></p>
+    </div>
+
+    <div id="automationCategoryWrap"><label>카테고리<select id="automationCategory"></select></label></div>
+    <div id="automationPaymentWrap"><label>결제수단<select id="automationPayment"><option>계좌이체</option><option>신용카드</option><option>체크카드</option><option>현금</option><option>기타</option></select></label></div>
+
+    <div id="automationDebtWrap" class="hidden">
+      <label>연결할 채무<select id="automationDebt"></select></label>
+      <p class="field-note">채무는 안전하게 자동 차감하지 않습니다. 예정일에 입력 대기로 띄우고 실제 상환액을 확정할 때 잔여 원금이 줄어듭니다.</p>
+    </div>
+
+    <label>매월 예정일<select id="automationDay"></select></label>
+    <label>시작 월<input id="automationStartMonth" type="month" required></label>
+    <label>메모<input id="automationMemo" placeholder="선택사항"></label>
+    <button class="primary">일정 추가</button>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="automation-head">
+    <div><h2>자동화 일정</h2><p>PC에서 가계부를 열 때 오늘 날짜를 기준으로 자동등록·입력대기를 확인합니다.</p></div>
+    <button id="runAutomationBtn" class="mini-btn">오늘 기준 확인</button>
+  </div>
+  <div id="automationList"></div>
+  <div id="automationEmpty" class="empty">등록된 자동화 일정이 없습니다.</div>
+</section>
 </div>
+</section>
+
+<section id="assets" class="page">
+  <section class="asset-summary summary-3">
+    <div class="card asset"><span>총자산</span><strong id="assetTotal">₩0</strong></div>
+    <div class="card debt"><span>총부채</span><strong id="assetDebtTotal">₩0</strong></div>
+    <div class="card balance"><span>순자산</span><strong id="netWorthTotal">₩0</strong></div>
+  </section>
+
+  <div class="asset-layout">
+    <section class="panel form-panel">
+      <h2>자산 등록</h2>
+      <p class="hint">현재 보유액을 기록하는 방식입니다. 거래내역과 계좌잔액은 자동 연결하지 않아 중복 계산을 피합니다.</p>
+      <form id="assetForm">
+        <label>종류
+          <select id="assetType">
+            <option value="bank">은행 계좌</option>
+            <option value="cash">현금</option>
+            <option value="saving">예금 / 적금</option>
+            <option value="investment">투자</option>
+            <option value="other">기타 자산</option>
+          </select>
+        </label>
+        <label>기관 / 보관처<input id="assetInstitution" placeholder="예: 국민은행 / 현금지갑 / 증권사"></label>
+        <label>자산명<input id="assetName" placeholder="예: 생활비 통장 / 적금 / 주식계좌" required></label>
+        <label>현재 금액<input id="assetBalance" type="number" min="0" step="1" placeholder="0" required></label>
+        <label>메모<input id="assetMemo" placeholder="선택사항"></label>
+        <button class="primary">자산 등록</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="asset-head"><div><h2>내 자산</h2><p>잔액이나 평가금액이 바뀌면 바로 수정할 수 있습니다.</p></div><strong id="assetListTotal">₩0</strong></div>
+      <div id="assetBreakdown" class="asset-breakdown"></div>
+      <div id="assetList"></div>
+      <div id="assetEmpty" class="empty">등록된 자산이 없습니다.</div>
+    </section>
+  </div>
+</section>
+
+<section id="settings" class="page">
+<div class="settings-grid">
+  <section class="panel">
+    <h2>비밀번호</h2>
+    <p class="hint">처음 설정할 때는 현재 비밀번호를 비워두세요.</p>
+    <div class="settings-form">
+      <label>현재 비밀번호<input id="currentPassword" type="password" placeholder="변경할 때만 입력"></label>
+      <label>새 비밀번호<input id="newPassword" type="password" placeholder="4자리 이상"></label>
+      <label>새 비밀번호 확인<input id="confirmPassword" type="password" placeholder="한 번 더 입력"></label>
+      <button id="changePasswordBtn" class="primary">비밀번호 저장 / 변경</button>
+      <button id="removePasswordBtn" class="ghost danger-text">비밀번호 해제</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>자동 잠금</h2>
+    <p class="hint">비밀번호가 설정되어 있을 때만 작동합니다.</p>
+    <div class="settings-form">
+      <label>미사용 시간<select id="autoLockMinutes"><option value="0">자동 잠금 사용 안 함</option><option value="5">5분</option><option value="10">10분</option><option value="30">30분</option><option value="60">60분</option></select></label>
+      <button id="saveAutoLockBtn" class="primary">자동 잠금 저장</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>백업 / 복원</h2>
+    <p class="hint">거래, 채무, 자동화, 입력 대기, 자산을 한 파일로 백업합니다. 비밀번호는 백업하지 않습니다.</p>
+    <div class="stack-actions">
+      <button id="exportBackupBtn" class="primary">백업 파일 저장</button>
+      <label class="file-button">백업 파일 불러오기<input id="importBackupInput" type="file" accept=".json,application/json"></label>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>데이터 관리</h2>
+    <p class="hint">초기화 전에는 백업 파일을 먼저 저장하는 것을 권장합니다.</p>
+    <button id="resetBtn" class="danger-button">거래 · 채무 · 자동화 · 자산 전체 초기화</button>
+  </section>
+</div>
+
+<section class="panel cloud-panel">
+  <div class="cloud-title-row">
+    <div>
+      <h2>PC · 모바일 계정 동기화</h2>
+      <p>Supabase 계정으로 로그인하면 같은 가계부 데이터를 여러 기기에서 동기화할 수 있습니다.</p>
+    </div>
+    <span id="cloudStatusBadge" class="cloud-status off">연결 전</span>
+  </div>
+  <div id="cloudConfigNotice" class="cloud-notice">클라우드 연결정보가 아직 설정되지 않았습니다. 동봉된 <b>SETUP_CLOUD.md</b>를 따라 한 번만 설정하면 됩니다.</div>
+  <div class="cloud-auth-grid">
+    <label>이메일<input id="cloudEmail" type="email" autocomplete="username" placeholder="내 이메일"></label>
+    <label>비밀번호<input id="cloudPassword" type="password" autocomplete="current-password" placeholder="계정 비밀번호"></label>
+  </div>
+  <div class="cloud-actions">
+    <button id="cloudSignUpBtn" class="mini-btn">계정 만들기</button>
+    <button id="cloudLoginBtn" class="primary-small-btn">로그인</button>
+    <button id="cloudLogoutBtn" class="mini-btn hidden">로그아웃</button>
+    <label class="inline-check sync-toggle"><input id="cloudAutoSync" type="checkbox"><span>자동 실시간 동기화</span></label>
+  </div>
+  <div id="cloudUserInfo" class="cloud-user hidden"></div>
+  <div class="cloud-sync-actions">
+    <button id="cloudPushBtn" class="mini-btn" disabled>이 기기 데이터를 클라우드로 올리기</button>
+    <button id="cloudPullBtn" class="mini-btn" disabled>클라우드 데이터를 이 기기로 가져오기</button>
+  </div>
+  <p class="field-note">비밀번호 잠금 설정 자체는 각 기기에만 저장됩니다. 거래·채무·자동화·입력 대기·자산 데이터만 동기화합니다.</p>
+</section>
+</section>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="cloud-config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
