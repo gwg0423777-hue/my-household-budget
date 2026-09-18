@@ -62,6 +62,7 @@ function toggleDebtVisibility(){
   localStorage.setItem(KEYS.showDebt,showDebtInAssets?"1":"0");
   renderDashboard();
   renderAssets();
+  renderDebts();
 }
 function save(markChanged=true){
   localStorage.setItem(KEYS.tx,JSON.stringify(transactions));localStorage.setItem(KEYS.debts,JSON.stringify(debts));localStorage.setItem(KEYS.auto,JSON.stringify(rules));localStorage.setItem(KEYS.pending,JSON.stringify(pending));localStorage.setItem(KEYS.assets,JSON.stringify(assets));
@@ -76,7 +77,7 @@ function normalizeData(){
 }
 normalizeData();
 
-$("date").value=today;$("monthFilter").value=thisMonth;$("dashMonthInput").value=thisMonth;$("automationStartMonth").value=thisMonth;$("autoLockMinutes").value=localStorage.getItem(KEYS.lock)||"0";
+$("date").value=today;$("monthFilter").value=thisMonth;$("dashMonthInput").value=thisMonth;$("calendarMonthInput").value=thisMonth;$("automationStartMonth").value=thisMonth;$("autoLockMinutes").value=localStorage.getItem(KEYS.lock)||"0";
 for(let i=1;i<=31;i++)$("automationDay").insertAdjacentHTML("beforeend",`<option value="${i}">${i}일</option>`);
 
 function refreshCats(){const a=C[type()];$("category").innerHTML=a.map(x=>`<option>${x}</option>`).join("")}
@@ -87,6 +88,7 @@ document.querySelectorAll("[data-go-tab]").forEach(b=>b.onclick=()=>goTab(b.data
 const PAGE_HEADERS={
   dashboard:{icon:"🏡",title:"대시보드",subtitle:"이번 달 가계 흐름을 한눈에 확인하세요."},
   transactions:{icon:"🧾",title:"거래 내역",subtitle:"모든 수입과 지출을 한눈에 확인하고 관리하세요."},
+  calendar:{icon:"📅",title:"달력",subtitle:"날짜별 수입과 지출 흐름을 월간 달력으로 확인하세요."},
   debts:{icon:"💳",title:"부채 관리",subtitle:"채무와 상환 현황을 깔끔하게 관리하세요."},
   automation:{icon:"📅",title:"자동화 일정",subtitle:"반복되는 수입·지출과 예정 일정을 관리하세요."},
   assets:{icon:"💰",title:"자산 관리",subtitle:"계좌·현금·저축·투자와 순자산을 확인하세요."},
@@ -152,6 +154,53 @@ function getFilteredTransactions(){
     .filter(t=>!q||[t.description,t.category,t.payment,t.date].some(v=>String(v||'').toLowerCase().includes(q)))
     .sort((x,y)=>String(y.date).localeCompare(String(x.date))||Number(y.createdAt)-Number(x.createdAt));
 }
+function renderCalendarPage(){
+  const root=$("transactionCalendar");
+  if(!root)return;
+  const month=$("calendarMonthInput").value||thisMonth;
+  const [year,mon]=String(month).split("-").map(Number);
+  const firstDay=new Date(year,mon-1,1).getDay();
+  const totalDays=new Date(year,mon,0).getDate();
+  const prevDays=new Date(year,mon-1,0).getDate();
+  const monthKey=`${year}-${pad(mon)}`;
+  const monthTx=transactions.filter(t=>ym(t.date)===monthKey);
+  const incomeTotal=monthTx.filter(t=>t.type==="income").reduce((s,t)=>s+Number(t.amount||0),0);
+  const expenseTotal=monthTx.filter(t=>t.type==="expense").reduce((s,t)=>s+Number(t.amount||0),0);
+  $("calendarIncomeTotal").textContent=won(incomeTotal);
+  $("calendarExpenseTotal").textContent=won(expenseTotal);
+  $("calendarBalanceTotal").textContent=won(incomeTotal-expenseTotal);
+  $("calendarCountTotal").textContent=`${monthTx.length}건`;
+  const totals={};
+  monthTx.forEach(t=>{
+    const day=Number(String(t.date).slice(8,10));
+    if(!totals[day])totals[day]={income:0,expense:0,count:0};
+    totals[day][t.type==="income"?"income":"expense"]+=Number(t.amount||0);
+    totals[day].count++;
+  });
+  const cells=[];
+  for(let i=0;i<42;i++){
+    const n=i-firstDay+1;
+    let day=n,outside=false;
+    if(n<1){day=prevDays+n;outside=true}else if(n>totalDays){day=n-totalDays;outside=true}
+    if(outside){cells.push(`<div class="calendar-cell outside"><span class="calendar-day">${day}</span></div>`);continue}
+    const t=totals[day]||{income:0,expense:0,count:0};
+    const iso=`${year}-${pad(mon)}-${pad(day)}`;
+    const todayClass=iso===today?" today":"";
+    const incomeHtml=t.income?`<span class="calendar-money income">+${won(t.income)}</span>`:`<span class="calendar-money placeholder">&nbsp;</span>`;
+    const expenseHtml=t.expense?`<span class="calendar-money expense">-${won(t.expense)}</span>`:`<span class="calendar-money placeholder">&nbsp;</span>`;
+    cells.push(`<div class="calendar-cell${todayClass}"><div class="calendar-day-row"><span class="calendar-day">${day}</span>${t.count?`<span class="calendar-count">${t.count}건</span>`:""}</div><div class="calendar-money-wrap">${incomeHtml}${expenseHtml}</div></div>`);
+  }
+  root.innerHTML=cells.join("");
+  $("calendarMonthLabel").textContent=`${year}년 ${mon}월 · 날짜별 총 수입과 총 지출`;
+}
+function shiftCalendarMonth(delta){
+  const current=$("calendarMonthInput").value||thisMonth;
+  const [y,m]=current.split("-").map(Number);
+  const d=new Date(y,m-1+delta,1);
+  $("calendarMonthInput").value=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;
+  renderCalendarPage();
+}
+
 function renderTransactions(){
   const allMonths=$('allMonthsFilter').checked,m=$('monthFilter').value,old=$('categoryFilter').value;
   const base=allMonths?transactions:monthData(m),cats=[...new Set(base.map(t=>t.category).filter(Boolean))].sort();
@@ -301,6 +350,10 @@ function renderAssets(){
 }
 
 $('monthFilter').onchange=renderTransactions;$('typeFilter').onchange=renderTransactions;$('categoryFilter').onchange=renderTransactions;$('paymentFilter').onchange=renderTransactions;$('allMonthsFilter').onchange=renderTransactions;$('searchFilter').oninput=renderTransactions;$('minAmountFilter').oninput=renderTransactions;$('maxAmountFilter').oninput=renderTransactions;$('dashMonthInput').onchange=renderDashboard;
+$('calendarMonthInput').onchange=renderCalendarPage;
+$('calendarPrevBtn').onclick=()=>shiftCalendarMonth(-1);
+$('calendarNextBtn').onclick=()=>shiftCalendarMonth(1);
+$('calendarTodayBtn').onclick=()=>{$('calendarMonthInput').value=thisMonth;renderCalendarPage();};
 $('resetTransactionFiltersBtn').onclick=()=>{$('searchFilter').value='';$('allMonthsFilter').checked=false;$('monthFilter').value=thisMonth;$('typeFilter').value='all';$('categoryFilter').value='all';$('paymentFilter').value='all';$('minAmountFilter').value='';$('maxAmountFilter').value='';renderTransactions()};
 $('assetDebtToggleBtn').onclick=toggleDebtVisibility;
 $('dashboardDebtToggleBtn').onclick=toggleDebtVisibility;
@@ -441,5 +494,5 @@ $("resetBtn").onclick=()=>{const text=prompt('거래·채무·자동화·자산 
 
 $("installBtn").hidden=true;window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredPrompt=e;$("installBtn").hidden=false});$("installBtn").onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$("installBtn").hidden=true}};if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 
-function renderAll(){renderSummary($("dashMonthInput").value);renderDashboard();renderTransactions();renderDebts();renderAutomation();renderAssets();refreshAutomationForm()}
+function renderAll(){renderSummary($("dashMonthInput").value);renderDashboard();renderTransactions();renderCalendarPage();renderDebts();renderAutomation();renderAssets();refreshAutomationForm()}
 refreshAutomationForm();runAutomation(false);refreshHeaderGreeting();updatePageHeader("dashboard");renderAll();resetInactivity();initCloud();if(hasPassword()){showLock()}else{document.body.classList.remove("privacy-boot","privacy-locked")}

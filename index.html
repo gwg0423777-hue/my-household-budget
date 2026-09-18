@@ -55,16 +55,12 @@
 <nav class="tabs">
   <button class="tab active" data-tab="dashboard">대시보드</button>
   <button class="tab" data-tab="transactions">거래 내역</button>
+  <button class="tab" data-tab="calendar">달력</button>
   <button class="tab" data-tab="debts">부채 관리</button>
   <button class="tab" data-tab="automation">자동화</button>
   <button class="tab" data-tab="assets">자산 관리</button>
   <button class="tab" data-tab="settings">설정 / 백업</button>
 </nav>
-<section class="sidebar-note">
-  <div class="sidebar-note-icon">🌱</div>
-  <strong>꾸준한 기록이</strong>
-  <span>든든한 미래를 만들어요.</span>
-</section>
 
 <section id="dashboard" class="page active">
   <div class="month-row">
@@ -141,6 +137,7 @@
     <div class="card stat balance-card"><div class="stat-icon">▣</div><div><span>이번 달 잔액</span><strong id="txBalanceSummary">0원</strong><small id="txBalanceMeta">수입 - 지출</small></div></div>
     <div class="card stat count-card"><div class="stat-icon">≡</div><div><span>거래 내역 수</span><strong id="txCountSummary">0건</strong><small id="txCountMeta">현재 필터 결과</small></div></div>
   </div>
+
 
   <div class="tx-layout">
     <div class="tx-main-column">
@@ -221,6 +218,48 @@
       </section>
     </aside>
   </div>
+</section>
+
+<section id="calendar" class="page calendar-page">
+  <section class="panel calendar-toolbar">
+    <div class="calendar-toolbar-title">
+      <span class="section-icon calendar-title-icon" aria-hidden="true">📅</span>
+      <div>
+        <h2>월간 가계 달력</h2>
+        <p class="small">날짜별 총 수입과 총 지출을 한눈에 확인하세요.</p>
+      </div>
+    </div>
+    <div class="calendar-controls">
+      <button id="calendarPrevBtn" type="button" class="mini-btn calendar-nav-btn" aria-label="이전 달">‹</button>
+      <input id="calendarMonthInput" type="month">
+      <button id="calendarNextBtn" type="button" class="mini-btn calendar-nav-btn" aria-label="다음 달">›</button>
+      <button id="calendarTodayBtn" type="button" class="mini-btn">이번 달</button>
+    </div>
+  </section>
+
+  <section class="calendar-summary">
+    <div class="card calendar-summary-card income"><span>월 총수입</span><strong id="calendarIncomeTotal">₩0</strong></div>
+    <div class="card calendar-summary-card expense"><span>월 총지출</span><strong id="calendarExpenseTotal">₩0</strong></div>
+    <div class="card calendar-summary-card balance"><span>월 잔액</span><strong id="calendarBalanceTotal">₩0</strong></div>
+    <div class="card calendar-summary-card count"><span>월 거래 수</span><strong id="calendarCountTotal">0건</strong></div>
+  </section>
+
+  <section class="panel tx-calendar-panel calendar-main-panel">
+    <div class="calendar-head">
+      <div>
+        <h2 id="calendarMainTitle">월간 수입 · 지출</h2>
+        <p id="calendarMonthLabel" class="small"></p>
+      </div>
+      <div class="calendar-legend">
+        <span><i class="calendar-dot income"></i>수입</span>
+        <span><i class="calendar-dot expense"></i>지출</span>
+      </div>
+    </div>
+    <div class="calendar-weekdays">
+      <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+    </div>
+    <div id="transactionCalendar" class="transaction-calendar"></div>
+  </section>
 </section>
 
 <section id="debts" class="page">

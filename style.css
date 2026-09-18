@@ -456,3 +456,57 @@ h2{font-size:21px!important;letter-spacing:-.02em!important;margin:0 0 6px!impor
 .debt-summary-card,.asset-debt-card,.liability-card{display:flex;flex-direction:column;align-items:flex-start}
 .debt-head-total strong{font-size:23px}
 #assetDebtTotal.masked,#dashLiabilitiesTotal.masked,#debtTotal.masked,#allDebtTotal.masked{color:#aab4be !important;letter-spacing:.1em}
+
+
+/* monthly transaction calendar */
+.tx-calendar-panel{padding:18px !important;overflow:hidden}
+.calendar-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.calendar-head h2{margin-bottom:4px !important}
+.calendar-legend{display:flex;align-items:center;gap:14px;color:#6d7885;font-size:12px;font-weight:700}
+.calendar-legend span{display:flex;align-items:center;gap:6px}
+.calendar-dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.calendar-dot.income{background:#64b98d}.calendar-dot.expense{background:#f47888}
+.calendar-weekdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid #e7ecef;border-bottom:0;border-radius:16px 16px 0 0;overflow:hidden;background:#f8fafb}
+.calendar-weekdays span{text-align:center;padding:9px 4px;font-size:12px;font-weight:800;color:#6c7886;border-right:1px solid #edf1f3}
+.calendar-weekdays span:last-child{border-right:0}
+.transaction-calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-left:1px solid #e7ecef;border-top:1px solid #e7ecef}
+.calendar-cell{min-height:112px;padding:9px;border-right:1px solid #e7ecef;border-bottom:1px solid #e7ecef;background:#fff;min-width:0}
+.calendar-cell.outside{background:#fafbfc;color:#c1c8cf}
+.calendar-cell.today{box-shadow:inset 0 0 0 2px #8bc7a7;background:#fbfffc}
+.calendar-day-row{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:8px}
+.calendar-day{font-size:13px;font-weight:800;color:#425264}
+.calendar-cell.outside .calendar-day{color:#c1c8cf}
+.calendar-count{font-size:10px;padding:3px 6px;border-radius:999px;background:#f1f4f6;color:#87929d;white-space:nowrap}
+.calendar-money-wrap{display:flex;flex-direction:column;gap:5px;min-width:0}
+.calendar-money{font-size:11px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.calendar-money.income{color:#2f9a68}.calendar-money.expense{color:#e96377}.calendar-money.placeholder{visibility:hidden}
+@media (max-width:900px){.calendar-cell{min-height:96px;padding:7px}.calendar-money{font-size:10px}}
+@media (max-width:700px){.tx-calendar-panel{overflow-x:auto}.calendar-weekdays,.transaction-calendar{min-width:760px}}
+
+
+/* ===== Standalone calendar page ===== */
+.calendar-page > * + *{margin-top:16px}
+.calendar-toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+.calendar-toolbar-title{display:flex;align-items:center;gap:12px}
+.calendar-toolbar-title h2{margin-bottom:4px !important}
+.calendar-title-icon{background:linear-gradient(180deg,#eef4ff,#e8efff)}
+.calendar-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.calendar-controls input[type="month"]{width:180px}
+.calendar-nav-btn{width:42px;height:42px;padding:0 !important;font-size:24px;display:grid;place-items:center}
+.calendar-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.calendar-summary-card{min-height:104px;display:flex;flex-direction:column;justify-content:center}
+.calendar-summary-card span{font-size:13px;color:#6d7885;font-weight:700;margin-bottom:8px}
+.calendar-summary-card strong{font-size:25px;letter-spacing:-.03em}
+.calendar-summary-card.income{background:linear-gradient(180deg,#edf8f2,#fff)!important}
+.calendar-summary-card.expense{background:linear-gradient(180deg,#fff2f5,#fff)!important}
+.calendar-summary-card.balance{background:linear-gradient(180deg,#eff5ff,#fff)!important}
+.calendar-summary-card.count{background:linear-gradient(180deg,#f4f0ff,#fff)!important}
+.calendar-summary-card.income strong{color:#259766}.calendar-summary-card.expense strong{color:#ec6477}.calendar-summary-card.balance strong{color:#4d83ef}
+.calendar-main-panel{padding:20px !important}
+@media(max-width:1100px){.calendar-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.calendar-toolbar{align-items:flex-start}.calendar-controls{width:100%}.calendar-controls input[type="month"]{flex:1;min-width:150px}.calendar-summary{grid-template-columns:1fr 1fr}.calendar-main-panel{overflow-x:auto}}
+@media(max-width:480px){.calendar-summary{grid-template-columns:1fr}}
+
+
+/* final cleanup: sidebar encouragement card removed */
+.sidebar-note{display:none !important;}
