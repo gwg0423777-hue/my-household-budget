@@ -31,3 +31,10 @@
 - `cloud-config.js`의 Publishable key는 웹앱용 공개 키입니다.
 - Supabase의 service_role/secret key는 앱 파일에 절대 넣으면 안 됩니다.
 - PC와 모바일에서 같은 항목을 완전히 동시에 수정하면 마지막 저장 내용이 우선될 수 있습니다.
+
+
+## 비밀번호 재설정
+가계부의 `비밀번호를 잊으셨나요?` 버튼은 Supabase Auth 재설정 이메일을 사용합니다.
+Supabase Dashboard의 Authentication > URL Configuration에서 아래 주소를 Site URL 및 Redirect URL에 등록하세요.
+
+https://gwg0423777-hue.github.io/my-household-budget/

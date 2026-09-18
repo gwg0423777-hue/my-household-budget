@@ -4,9 +4,9 @@ const won=n=>new Intl.NumberFormat("ko-KR",{style:"currency",currency:"KRW",maxi
 const pad=n=>String(n).padStart(2,"0");
 const localDateString=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const now=new Date(),today=localDateString(now),thisMonth=today.slice(0,7);
-const KEYS={tx:"hb_transactions",debts:"hb_debts",auto:"hb_automation_rules",pending:"hb_pending_entries",assets:"hb_assets",pass:"hb_password_hash",salt:"hb_password_salt",lock:"hb_auto_lock_minutes",localUpdated:"hb_local_updated_at",cloudAuto:"hb_cloud_auto_sync",device:"hb_device_id"};
+const KEYS={tx:"hb_transactions",debts:"hb_debts",auto:"hb_automation_rules",pending:"hb_pending_entries",assets:"hb_assets",pass:"hb_password_hash",salt:"hb_password_salt",lock:"hb_auto_lock_minutes",localUpdated:"hb_local_updated_at",cloudAuto:"hb_cloud_auto_sync",device:"hb_device_id",showDebt:"hb_show_debt_in_assets"};
 let transactions=safeArray(KEYS.tx),debts=safeArray(KEYS.debts),rules=safeArray(KEYS.auto),pending=safeArray(KEYS.pending),assets=safeArray(KEYS.assets);
-let deferredPrompt,inactivityTimer=null,editingTransactionId=null,currentFilteredTransactions=[];
+let deferredPrompt,inactivityTimer=null,editingTransactionId=null,currentFilteredTransactions=[],currentTopMode="expense",showDebtInAssets=localStorage.getItem(KEYS.showDebt)==="1";
 let cloudClient=null,cloudUser=null,cloudChannel=null,cloudPushTimer=null,cloudApplying=false;
 const DEVICE_ID=localStorage.getItem(KEYS.device)||uid();localStorage.setItem(KEYS.device,DEVICE_ID);
 const CLOUD_CONFIG=window.HB_CLOUD_CONFIG||{};
@@ -25,8 +25,44 @@ function assetTypeLabel(t){return ({bank:"은행 계좌",cash:"현금",saving:"�
 function kindLabel(k){return k==="fixed"?"정기 지출":k==="salary"?"정기 수입":k==="card"?"카드 결제일":"채무 상환"}
 function kindBadge(k){return k==="fixed"?"red":k==="salary"?"blue":k==="card"?"gold":"green"}
 function modeLabel(m){return m==="fixed"?"금액 고정":m==="pending"?"입력 대기":"알림만"}
+const CATEGORY_ICONS={"식비":"🍚","교통":"🚌","쇼핑":"🛍️","고정비":"📌","공과금":"💡","여가":"🎬","의료":"💊","교육":"📚","생활":"🛒","대출상환":"💳","카페/간식":"☕","주거비":"🏠","생활비":"🧺","문화/여가":"🎬","급여":"💼","부수입":"✨","용돈":"🎁","이자/배당":"💰","환급":"↩️","저축":"🏦","투자":"📈","기타":"📁"};
+function categoryIcon(name){return CATEGORY_ICONS[name]||"•"}
+function blankTopRows(){return Array.from({length:5},(_,i)=>`<li class="blank-rank"><span class="rank-badge">${i+1}</span><span class="rank-label">&nbsp;</span><strong>&nbsp;</strong></li>`).join("")}
+function renderTopCategoryList(expenseEntries,incomeEntries){
+  const btnExpense=$("topExpenseTab"),btnIncome=$("topIncomeTab");
+  btnExpense.className=currentTopMode==="expense"?"primary-small-btn active":"mini-btn";
+  btnIncome.className=currentTopMode==="income"?"primary-small-btn active":"mini-btn";
+  const source=currentTopMode==="expense"?expenseEntries:incomeEntries;
+  $("topCategoryList").innerHTML=source.length?source.slice(0,5).map(([name,value],i)=>`<li><span class="rank-badge">${i+1}</span><span class="rank-label">${esc(name)}</span><strong>${won(value)}</strong></li>`).join(""):blankTopRows();
+}
+function refreshHeaderGreeting(){
+  const d=new Date();
+  const days=["일","월","화","수","목","금","토"];
+  $("todayDateText").textContent=`${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
+  const h=d.getHours();
+  $("todayGreetingText").textContent=h<12?"좋은 아침이에요 🌿":h<18?"좋은 하루 보내세요 🌿":"오늘도 수고 많았어요 🌙";
+}
 function totalDebt(){return debts.reduce((s,d)=>s+Math.max(0,Number(d.remaining)||0),0)}
 function totalAssets(){return assets.reduce((s,a)=>s+Math.max(0,Number(a.balance)||0),0)}
+function visibleDebtTotal(){return showDebtInAssets?totalDebt():0}
+function debtDisplayValue(v){return showDebtInAssets?won(v):"••••••"}
+function updateDebtVisibilityUI(){
+  const label=showDebtInAssets?"부채 숨기기":"부채 보기";
+  [$("assetDebtToggleBtn"),$("dashboardDebtToggleBtn"),$("dashboardDebtCardToggleBtn"),$("debtPageToggleBtn")].forEach(btn=>{
+    if(!btn)return;
+    btn.textContent=showDebtInAssets?"🙈":"👁";
+    btn.setAttribute("title",label);
+    btn.setAttribute("aria-label",label);
+    btn.setAttribute("aria-pressed",showDebtInAssets?"true":"false");
+  });
+  [$("assetDebtTotal"),$("dashLiabilitiesTotal"),$("debtTotal"),$("allDebtTotal")].forEach(el=>{if(el)el.classList.toggle("masked",!showDebtInAssets)});
+}
+function toggleDebtVisibility(){
+  showDebtInAssets=!showDebtInAssets;
+  localStorage.setItem(KEYS.showDebt,showDebtInAssets?"1":"0");
+  renderDashboard();
+  renderAssets();
+}
 function save(markChanged=true){
   localStorage.setItem(KEYS.tx,JSON.stringify(transactions));localStorage.setItem(KEYS.debts,JSON.stringify(debts));localStorage.setItem(KEYS.auto,JSON.stringify(rules));localStorage.setItem(KEYS.pending,JSON.stringify(pending));localStorage.setItem(KEYS.assets,JSON.stringify(assets));
   if(markChanged){localStorage.setItem(KEYS.localUpdated,new Date().toISOString());scheduleCloudPush();}
@@ -48,7 +84,25 @@ document.querySelectorAll('input[name="type"]').forEach(x=>x.onchange=refreshCat
 
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>goTab(b.dataset.tab));
 document.querySelectorAll("[data-go-tab]").forEach(b=>b.onclick=()=>goTab(b.dataset.goTab));
-function goTab(id){document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.tab===id));document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id===id))}
+const PAGE_HEADERS={
+  dashboard:{icon:"🏡",title:"대시보드",subtitle:"이번 달 가계 흐름을 한눈에 확인하세요."},
+  transactions:{icon:"🧾",title:"거래 내역",subtitle:"모든 수입과 지출을 한눈에 확인하고 관리하세요."},
+  debts:{icon:"💳",title:"부채 관리",subtitle:"채무와 상환 현황을 깔끔하게 관리하세요."},
+  automation:{icon:"📅",title:"자동화 일정",subtitle:"반복되는 수입·지출과 예정 일정을 관리하세요."},
+  assets:{icon:"💰",title:"자산 관리",subtitle:"계좌·현금·저축·투자와 순자산을 확인하세요."},
+  settings:{icon:"⚙️",title:"설정 / 백업",subtitle:"잠금, 백업, 복원과 PC·모바일 동기화를 관리하세요."}
+};
+function updatePageHeader(id){
+  const h=PAGE_HEADERS[id]||PAGE_HEADERS.dashboard;
+  $("pageHeaderIcon").textContent=h.icon;
+  $("pageHeaderTitle").textContent=h.title;
+  $("pageHeaderSubtitle").textContent=h.subtitle;
+}
+function goTab(id){
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.tab===id));
+  document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id===id));
+  updatePageHeader(id);
+}
 
 function refreshAutomationForm(){
   const k=$("automationKind").value;
@@ -72,9 +126,10 @@ function refreshAutomationForm(){
 $("automationKind").onchange=refreshAutomationForm;$("automationMode").onchange=refreshAutomationForm;
 
 function renderSummary(m){
-  const a=monthData(m),inc=a.filter(t=>t.type==="income").reduce((s,t)=>s+Number(t.amount),0),exp=a.filter(t=>t.type==="expense").reduce((s,t)=>s+Number(t.amount),0),debt=totalDebt(),asset=totalAssets();
-  $("incomeTotal").textContent=won(inc);$("expenseTotal").textContent=won(exp);$("balanceTotal").textContent=won(inc-exp);$("debtTotal").textContent=won(debt);$("dashMonth").textContent=m.slice(0,4)+"년 "+Number(m.slice(5))+"월";
-  $("dashAssetsTotal").textContent=won(asset);$("dashLiabilitiesTotal").textContent=won(debt);$("dashNetWorth").textContent=won(asset-debt);
+  const a=monthData(m),inc=a.filter(t=>t.type==="income").reduce((s,t)=>s+Number(t.amount),0),exp=a.filter(t=>t.type==="expense").reduce((s,t)=>s+Number(t.amount),0),debt=totalDebt(),visibleDebt=visibleDebtTotal(),asset=totalAssets();
+  $("incomeTotal").textContent=won(inc);$("expenseTotal").textContent=won(exp);$("balanceTotal").textContent=won(inc-exp);$("debtTotal").textContent=debtDisplayValue(debt);$("dashMonth").textContent=m.slice(0,4)+"년 "+Number(m.slice(5))+"월";
+  $("dashAssetsTotal").textContent=won(asset);$("dashLiabilitiesTotal").textContent=debtDisplayValue(debt);$("dashNetWorth").textContent=won(asset-visibleDebt);
+  updateDebtVisibilityUI();
 }
 function renderDashboard(){
   const m=$("dashMonthInput").value,a=monthData(m),ex=a.filter(t=>t.type==="expense");renderSummary(m);
@@ -100,22 +155,57 @@ function getFilteredTransactions(){
 function renderTransactions(){
   const allMonths=$('allMonthsFilter').checked,m=$('monthFilter').value,old=$('categoryFilter').value;
   const base=allMonths?transactions:monthData(m),cats=[...new Set(base.map(t=>t.category).filter(Boolean))].sort();
-  $('categoryFilter').innerHTML='<option value="all">카테고리 전체</option>'+cats.map(c=>`<option>${esc(c)}</option>`).join('');if(cats.includes(old))$('categoryFilter').value=old;
+  $('categoryFilter').innerHTML='<option value="all">전체 카테고리</option>'+cats.map(c=>`<option>${esc(c)}</option>`).join('');if(cats.includes(old))$('categoryFilter').value=old;
   $('monthFilter').disabled=allMonths;
   currentFilteredTransactions=getFilteredTransactions();
-  $('monthLabel').innerHTML=(allMonths?'전체 기간':m.slice(0,4)+'년 '+Number(m.slice(5))+'월')+` · <span class="search-count">${currentFilteredTransactions.length}건</span>`;
-  $('empty').style.display=currentFilteredTransactions.length?'none':'block';
-  $('transactionList').innerHTML=currentFilteredTransactions.map(t=>`<div class="transaction"><div class="date-text">${String(t.date).slice(5).replace('-','.')}</div><div><div class="desc">${esc(t.description)}</div><div class="meta">${esc(t.category)} · ${esc(t.payment||'')}${t.automationRuleId?' · 자동화':''}${t.debtId?' · 채무연결':''}</div></div><div class="money ${t.type}">${t.type==='income'?'+':'-'}${won(t.amount)}</div><div class="tx-actions">${t.debtId?'':`<button class="tx-action" onclick="editTransaction('${t.id}')">수정</button>`}<button class="delete" onclick="removeTransaction('${t.id}')">×</button></div></div>`).join('');
+  const title=(allMonths?'전체 기간':m.slice(0,4)+'년 ' +Number(m.slice(5))+'월');
+  $('monthLabel').innerHTML=`${title} · <span class="search-count">${currentFilteredTransactions.length}건</span>`;
+  $('empty').style.display=currentFilteredTransactions.length?'none':'flex';
+  $('transactionTableWrap').style.display=currentFilteredTransactions.length?'block':'none';
+
+  const incomeTx=currentFilteredTransactions.filter(t=>t.type==='income');
+  const expenseTx=currentFilteredTransactions.filter(t=>t.type==='expense');
+  const incomeTotal=incomeTx.reduce((s,t)=>s+Number(t.amount||0),0);
+  const expenseTotal=expenseTx.reduce((s,t)=>s+Number(t.amount||0),0);
+  const balanceTotal=incomeTotal-expenseTotal;
+  $('txIncomeSummary').textContent=won(incomeTotal);
+  $('txExpenseSummary').textContent=won(expenseTotal);
+  $('txBalanceSummary').textContent=(balanceTotal<0?'-':'')+won(Math.abs(balanceTotal));
+  $('txCountSummary').textContent=`${currentFilteredTransactions.length}건`;
+  $('txIncomeCompare').textContent=`수입 항목 ${incomeTx.length}건`;
+  $('txExpenseCompare').textContent=`지출 항목 ${expenseTx.length}건`;
+  $('txBalanceMeta').textContent=balanceTotal>=0?'저축 여력이 남아 있어요':'지출이 수입보다 많아요';
+  $('txCountMeta').textContent=allMonths?'전체 기간 기준':'현재 선택 월 기준';
+
+  const expenseByCategory={}, incomeByCategory={};
+  expenseTx.forEach(t=>{const c=t.category||'기타';expenseByCategory[c]=(expenseByCategory[c]||0)+Number(t.amount||0)});
+  incomeTx.forEach(t=>{const c=t.category||'기타';incomeByCategory[c]=(incomeByCategory[c]||0)+Number(t.amount||0)});
+  const expenseEntries=Object.entries(expenseByCategory).sort((a,b)=>b[1]-a[1]);
+  const incomeEntries=Object.entries(incomeByCategory).sort((a,b)=>b[1]-a[1]);
+  const totalExpense=expenseEntries.reduce((s,[,v])=>s+v,0);
+  $('txTotalExpenseCenter').textContent=won(totalExpense);
+  const palette=['#fb7474','#67a0ff','#f3c14e','#d7a474','#9b7ef4','#7aa4f6','#bec8d5'];
+  let acc=0;
+  const gradients=expenseEntries.length?expenseEntries.map(([_,v],i)=>{const startPct=Math.round((acc/totalExpense)*1000)/10;acc+=v;const endPct=Math.round((acc/totalExpense)*1000)/10;return `${palette[i%palette.length]} ${startPct}% ${endPct}%`;}).join(', '):'#e9eef2 0 100%';
+  $('expenseDonut').style.background=`conic-gradient(${gradients})`;
+  $('categoryLegend').innerHTML=expenseEntries.length?expenseEntries.map(([name,value],i)=>{const pct=totalExpense?((value/totalExpense)*100).toFixed(1):'0.0';return `<div class="legend-row"><div class="legend-left"><span class="legend-dot" style="background:${palette[i%palette.length]}"></span><span>${esc(name)}</span></div><strong>${pct}%</strong></div>`;}).join(''):'';
+  renderTopCategoryList(expenseEntries,incomeEntries);
+
+  $('transactionTableBody').innerHTML=currentFilteredTransactions.map(t=>{const day=String(t.date).slice(5).replace('-','.');const typeLabel=t.type==='income'?'수입':'지출';const amountHtml=`<span class="money ${t.type}">${t.type==='income'?'+':'-'}${won(t.amount)}</span>`;const catClass=t.type==='income'?'income':'expense';const payment=t.payment||'';const memo=[t.automationRuleId?'자동화':'',t.debtId?'채무연결':''].filter(Boolean).join(' · ');const icon=categoryIcon(t.category||'기타');return `<tr><td>${day}</td><td class="tx-desc-cell">${esc(t.description)}</td><td><span class="pill pill-category ${catClass}"><span class="pill-emoji">${icon}</span><span>${esc(t.category||'기타')}</span></span></td><td><span class="pill pill-type ${catClass}">${typeLabel}</span></td><td>${amountHtml}</td><td>${esc(payment)}</td><td>${memo||'-'}</td><td class="tx-manage">${t.debtId?'':`<button class="table-action" onclick="editTransaction('${t.id}')">수정</button>`}<button class="table-delete" onclick="removeTransaction('${t.id}')">삭제</button></td></tr>`}).join('');
 }
+
 window.editTransaction=id=>{
   const t=transactions.find(x=>x.id===id);if(!t)return;if(t.debtId)return alert('채무 상환 거래는 금액 연결 때문에 직접 수정하지 않습니다. 삭제 후 부채 관리에서 다시 상환 등록해주세요.');
   editingTransactionId=id;document.querySelector(`input[name="type"][value="${t.type}"]`).checked=true;refreshCats();
   if(![...$('category').options].some(o=>o.value===t.category))$('category').insertAdjacentHTML('beforeend',`<option>${esc(t.category)}</option>`);
   $('date').value=t.date;$('category').value=t.category;$('description').value=t.description;$('amount').value=t.amount;$('payment').value=t.payment||'기타';
-  $('transactionSubmitBtn').textContent='수정 저장';$('transactionCancelEditBtn').classList.remove('hidden');goTab('transactions');$('description').focus();
+  $('transactionSubmitBtn').textContent='수정 저장';$('transactionCancelEditBtn').classList.remove('hidden');$('transactionFormTitle').textContent='거래 내역 수정';goTab('transactions');$('transactionFormPanel').scrollIntoView({behavior:'smooth',block:'start'});$('description').focus();
 };
-function cancelTransactionEdit(){editingTransactionId=null;$('transactionForm').reset();document.querySelector('input[name="type"][value="expense"]').checked=true;$('date').value=today;refreshCats();$('transactionSubmitBtn').textContent='거래 추가';$('transactionCancelEditBtn').classList.add('hidden')}
+function cancelTransactionEdit(){editingTransactionId=null;$('transactionForm').reset();document.querySelector('input[name="type"][value="expense"]').checked=true;$('date').value=today;refreshCats();$('transactionSubmitBtn').textContent='거래 추가';$('transactionCancelEditBtn').classList.add('hidden');$('transactionFormTitle').textContent='거래 내역 추가'}
 $('transactionCancelEditBtn').onclick=cancelTransactionEdit;
+$('jumpToFormBtn').onclick=()=>{$('transactionFormPanel').scrollIntoView({behavior:'smooth',block:'start'});$('description').focus();};
+$('topExpenseTab').onclick=()=>{currentTopMode='expense';renderTransactions();};
+$('topIncomeTab').onclick=()=>{currentTopMode='income';renderTransactions();};
 window.removeTransaction=id=>{const t=transactions.find(x=>x.id===id);if(!t)return;if(!confirm(t.debtId?'이 상환 거래를 삭제하면 해당 금액만큼 채무 잔액도 되돌립니다. 삭제할까요?':'이 거래를 삭제할까요?'))return;
   if(t.debtId){const d=debts.find(x=>x.id===t.debtId);if(d){d.remaining=Math.min(Number(d.principal)||0,Number(d.remaining||0)+Number(t.amount||0));d.repaid=Math.max(0,Number(d.repaid||0)-Number(t.amount||0));}if(t.pendingId){const p=pending.find(x=>x.id===t.pendingId);if(p){p.status='pending';delete p.transactionId;delete p.actualAmount;delete p.completedAt;}}}
   transactions=transactions.filter(x=>x.id!==id);if(editingTransactionId===id)cancelTransactionEdit();save();renderAll();
@@ -132,8 +222,9 @@ function createDebtRepayment(d,amount,date,sourceRuleId=null,pendingId=null){con
 window.repayDebt=id=>{const d=debts.find(x=>x.id===id),input=document.querySelector(`[data-repay="${id}"]`),v=Number(input.value);if(!v||v<=0)return alert("상환 금액을 입력해주세요.");if(v>d.remaining)return alert("남은 채무보다 많이 상환할 수 없습니다.");createDebtRepayment(d,v,today);save();renderAll()};
 window.deleteDebt=id=>{if(confirm("이 채무를 삭제할까요? 기존 상환 거래는 유지됩니다.")){debts=debts.filter(d=>d.id!==id);rules=rules.filter(r=>r.debtId!==id);pending=pending.filter(p=>p.debtId!==id||p.status!=="pending");save();refreshAutomationForm();renderAll()}};
 function renderDebts(){
-  $("allDebtTotal").textContent=won(totalDebt());$("debtTotal").textContent=won(totalDebt());$("debtEmpty").style.display=debts.length?"none":"block";
-  $("debtList").innerHTML=debts.map(d=>{const pct=d.principal?Math.min(100,Number(d.repaid||0)/Number(d.principal)*100):100;return `<div class="debt-card"><div class="debt-top"><div><span class="badge">${debtTypeLabel(d.type)}</span><div class="debt-name">${esc(d.name)}</div><div class="creditor">${esc(d.creditor)}${d.memo?" · "+esc(d.memo):""}</div></div><button class="delete" onclick="deleteDebt('${d.id}')">×</button></div><div class="debt-progress"><div style="width:${pct}%"></div></div><div class="debt-numbers"><span>남은 원금 <b>${won(d.remaining)}</b></span><span>상환 ${pct.toFixed(0)}%</span></div>${Number(d.remaining)>0?`<div class="repay"><input data-repay="${d.id}" type="number" min="1" max="${d.remaining}" placeholder="상환 금액"><button onclick="repayDebt('${d.id}')">상환 등록</button></div>`:`<div class="paid">✓ 전액 상환 완료</div>`}</div>`}).join("");
+  $("allDebtTotal").textContent=debtDisplayValue(totalDebt());$("debtTotal").textContent=debtDisplayValue(totalDebt());$("debtEmpty").style.display=debts.length?"none":"block";
+  $("debtList").innerHTML=debts.map(d=>{const pct=d.principal?Math.min(100,Number(d.repaid||0)/Number(d.principal)*100):100;const remainText=showDebtInAssets?won(d.remaining):"••••••";const repayMeta=showDebtInAssets?`${pct.toFixed(0)}%`:`진행중`;return `<div class="debt-card"><div class="debt-top"><div><span class="badge">${debtTypeLabel(d.type)}</span><div class="debt-name">${esc(d.name)}</div><div class="creditor">${esc(d.creditor)}${d.memo?" · "+esc(d.memo):""}</div></div><button class="delete" onclick="deleteDebt('${d.id}')">×</button></div><div class="debt-progress"><div style="width:${pct}%"></div></div><div class="debt-numbers"><span>남은 원금 <b>${remainText}</b></span><span>상환 ${repayMeta}</span></div>${Number(d.remaining)>0?`<div class="repay"><input data-repay="${d.id}" type="number" min="1" max="${d.remaining}" placeholder="상환 금액"><button onclick="repayDebt('${d.id}')">상환 등록</button></div>`:`<div class="paid">✓ 전액 상환 완료</div>`}</div>`}).join("");
+  updateDebtVisibilityUI();
 }
 
 $("automationForm").onsubmit=e=>{
@@ -203,13 +294,18 @@ $("assetForm").onsubmit=e=>{e.preventDefault();assets.push({id:uid(),type:$("ass
 window.updateAsset=id=>{const a=assets.find(x=>x.id===id),input=document.querySelector(`[data-asset-balance="${id}"]`);if(!a||!input)return;const value=Number(input.value);if(value<0||!Number.isFinite(value))return alert("0원 이상의 금액을 입력해주세요.");a.balance=value;a.updatedAt=Date.now();save();renderAll()};
 window.deleteAsset=id=>{if(confirm("이 자산을 삭제할까요?")){assets=assets.filter(a=>a.id!==id);save();renderAll()}};
 function renderAssets(){
-  const asset=totalAssets(),debt=totalDebt();$("assetTotal").textContent=won(asset);$("assetDebtTotal").textContent=won(debt);$("netWorthTotal").textContent=won(asset-debt);$("assetListTotal").textContent=won(asset);$("assetEmpty").style.display=assets.length?"none":"block";
+  const asset=totalAssets(),debt=totalDebt(),visibleDebt=visibleDebtTotal();$("assetTotal").textContent=won(asset);$("assetDebtTotal").textContent=debtDisplayValue(debt);$("netWorthTotal").textContent=won(asset-visibleDebt);$("assetListTotal").textContent=won(asset);$("assetEmpty").style.display=assets.length?"none":"block";
   const types=["bank","cash","saving","investment","other"];$("assetBreakdown").innerHTML=types.map(t=>{const v=assets.filter(a=>a.type===t).reduce((s,a)=>s+Number(a.balance),0);return `<div class="asset-mini"><span>${assetTypeLabel(t)}</span><b>${won(v)}</b></div>`}).join("");
   $("assetList").innerHTML=[...assets].sort((a,b)=>Number(b.balance)-Number(a.balance)).map(a=>`<div class="asset-card"><div class="asset-card-top"><div><span class="badge">${assetTypeLabel(a.type)}</span><div class="asset-name">${esc(a.name)}</div><div class="asset-place">${esc(a.institution||"보관처 미입력")}${a.memo?" · "+esc(a.memo):""}</div></div><div><div class="asset-value">${won(a.balance)}</div><div class="asset-updated">최근 수정 ${a.updatedAt?new Date(a.updatedAt).toLocaleDateString("ko-KR"):"-"}</div></div></div><div class="asset-edit"><input data-asset-balance="${a.id}" type="number" min="0" step="1" value="${Number(a.balance)}"><div class="pending-actions"><button class="save" onclick="updateAsset('${a.id}')">금액 수정</button><button class="mini-danger" onclick="deleteAsset('${a.id}')">삭제</button></div></div></div>`).join("");
+  updateDebtVisibilityUI();
 }
 
 $('monthFilter').onchange=renderTransactions;$('typeFilter').onchange=renderTransactions;$('categoryFilter').onchange=renderTransactions;$('paymentFilter').onchange=renderTransactions;$('allMonthsFilter').onchange=renderTransactions;$('searchFilter').oninput=renderTransactions;$('minAmountFilter').oninput=renderTransactions;$('maxAmountFilter').oninput=renderTransactions;$('dashMonthInput').onchange=renderDashboard;
 $('resetTransactionFiltersBtn').onclick=()=>{$('searchFilter').value='';$('allMonthsFilter').checked=false;$('monthFilter').value=thisMonth;$('typeFilter').value='all';$('categoryFilter').value='all';$('paymentFilter').value='all';$('minAmountFilter').value='';$('maxAmountFilter').value='';renderTransactions()};
+$('assetDebtToggleBtn').onclick=toggleDebtVisibility;
+$('dashboardDebtToggleBtn').onclick=toggleDebtVisibility;
+$('dashboardDebtCardToggleBtn').onclick=toggleDebtVisibility;
+$('debtPageToggleBtn').onclick=toggleDebtVisibility;
 
 
 function csvCell(v){const x=String(v??'').replace(/"/g,'""');return `"${x}"`}
@@ -255,19 +351,62 @@ function subscribeCloud(){
   if(!cloudClient||!cloudUser)return;if(cloudChannel)cloudClient.removeChannel(cloudChannel);
   cloudChannel=cloudClient.channel('household-budget-'+cloudUser.id).on('postgres_changes',{event:'*',schema:'public',table:'household_budget_data',filter:`user_id=eq.${cloudUser.id}`},payload=>{const data=payload.new?.data;if(!$('cloudAutoSync').checked||!data||data.sourceDevice===DEVICE_ID)return;const remote=Date.parse(data.updatedAt||0)||0,local=Date.parse(localStorage.getItem(KEYS.localUpdated)||0)||0;if(remote>=local){applyCloudSnapshot(data);setCloudUi('on',`${cloudUser.email} · 다른 기기 변경 반영됨`);}}).subscribe();
 }
+function cloudRedirectUrl(){
+  if(location.protocol==='http:'||location.protocol==='https:')return location.origin+location.pathname;
+  return 'https://gwg0423777-hue.github.io/my-household-budget/';
+}
+function isPasswordRecoveryUrl(){
+  return (location.hash||'').includes('type=recovery')||(location.search||'').includes('type=recovery');
+}
+function showCloudRecovery(){
+  goTab('settings');
+  $('cloudRecoveryPanel').classList.remove('hidden');
+  $('cloudNewPassword').focus();
+}
 async function onCloudUser(user){
-  cloudUser=user||null;const signed=!!cloudUser;$('cloudLoginBtn').classList.toggle('hidden',signed);$('cloudSignUpBtn').classList.toggle('hidden',signed);$('cloudLogoutBtn').classList.toggle('hidden',!signed);$('cloudPushBtn').disabled=!signed;$('cloudPullBtn').disabled=!signed;
+  cloudUser=user||null;const signed=!!cloudUser;$('cloudLoginBtn').classList.toggle('hidden',signed);$('cloudSignUpBtn').classList.toggle('hidden',signed);$('cloudForgotPasswordBtn').classList.toggle('hidden',signed);$('cloudLogoutBtn').classList.toggle('hidden',!signed);$('cloudPushBtn').disabled=!signed;$('cloudPullBtn').disabled=!signed;
   if(!signed){setCloudUi('off');$('cloudUserInfo').classList.add('hidden');return;}setCloudUi('on',`${cloudUser.email} 로그인됨`);subscribeCloud();await smartInitialSync();
 }
 async function initCloud(){
   $('cloudAutoSync').checked=localStorage.getItem(KEYS.cloudAuto)!=='0';
   if(!cloudConfigReady()){$('cloudConfigNotice').classList.remove('hidden');setCloudUi('off','cloud-config.js 설정 후 계정 동기화를 사용할 수 있습니다.');return;}
   $('cloudConfigNotice').classList.add('hidden');cloudClient=window.supabase.createClient(CLOUD_CONFIG.url,CLOUD_CONFIG.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-  const {data}=await cloudClient.auth.getSession();await onCloudUser(data.session?.user||null);cloudClient.auth.onAuthStateChange((_event,session)=>onCloudUser(session?.user||null));
+  const {data}=await cloudClient.auth.getSession();await onCloudUser(data.session?.user||null);
+  if(isPasswordRecoveryUrl())showCloudRecovery();
+  cloudClient.auth.onAuthStateChange((event,session)=>{
+    onCloudUser(session?.user||null);
+    if(event==='PASSWORD_RECOVERY'){
+      showCloudRecovery();
+      setCloudUi('wait','비밀번호 재설정 링크가 확인되었습니다. 새 비밀번호를 입력해주세요.');
+    }
+  });
 }
 $('cloudAutoSync').onchange=()=>{localStorage.setItem(KEYS.cloudAuto,$('cloudAutoSync').checked?'1':'0');if($('cloudAutoSync').checked)smartInitialSync()};
-$('cloudSignUpBtn').onclick=async()=>{if(!cloudClient)return alert('먼저 cloud-config.js 연결 설정이 필요합니다.');const email=$('cloudEmail').value.trim(),password=$('cloudPassword').value;if(!email||password.length<6)return alert('이메일과 6자리 이상의 비밀번호를 입력해주세요.');setCloudUi('wait');const {data,error}=await cloudClient.auth.signUp({email,password});if(error)return setCloudUi('error',error.message),alert(error.message);if(data.session)await onCloudUser(data.user);else setCloudUi('wait','가입 확인 메일이 발송되었습니다. 메일 확인 후 로그인해주세요.')};
+$('cloudSignUpBtn').onclick=async()=>{if(!cloudClient)return alert('먼저 cloud-config.js 연결 설정이 필요합니다.');const email=$('cloudEmail').value.trim(),password=$('cloudPassword').value;if(!email||password.length<6)return alert('이메일과 6자리 이상의 비밀번호를 입력해주세요.');setCloudUi('wait');const {data,error}=await cloudClient.auth.signUp({email,password,options:{emailRedirectTo:cloudRedirectUrl()}});if(error)return setCloudUi('error',error.message),alert(error.message);if(data.session)await onCloudUser(data.user);else setCloudUi('wait','가입 확인 메일이 발송되었습니다. 메일 확인 후 로그인해주세요.')};
 $('cloudLoginBtn').onclick=async()=>{if(!cloudClient)return alert('먼저 cloud-config.js 연결 설정이 필요합니다.');const email=$('cloudEmail').value.trim(),password=$('cloudPassword').value;if(!email||!password)return alert('이메일과 비밀번호를 입력해주세요.');setCloudUi('wait');const {data,error}=await cloudClient.auth.signInWithPassword({email,password});if(error)return setCloudUi('error',error.message),alert('로그인 실패: '+error.message);await onCloudUser(data.user);$('cloudPassword').value=''};
+$('cloudForgotPasswordBtn').onclick=async()=>{
+  if(!cloudClient)return alert('클라우드 연결 설정이 필요합니다.');
+  const email=$('cloudEmail').value.trim();
+  if(!email)return alert('비밀번호를 재설정할 이메일을 먼저 입력해주세요.');
+  setCloudUi('wait','비밀번호 재설정 메일을 보내는 중입니다.');
+  const {error}=await cloudClient.auth.resetPasswordForEmail(email,{redirectTo:cloudRedirectUrl()});
+  if(error){setCloudUi('error',error.message);return alert('재설정 메일 전송 실패: '+error.message);}
+  setCloudUi('wait',`${email}로 비밀번호 재설정 메일을 보냈습니다. 메일의 링크를 눌러주세요.`);
+  alert('비밀번호 재설정 메일을 보냈습니다. 메일의 링크를 누르면 가계부에서 새 비밀번호를 설정할 수 있습니다.');
+};
+$('cloudUpdatePasswordBtn').onclick=async()=>{
+  if(!cloudClient)return alert('클라우드 연결 설정이 필요합니다.');
+  const password=$('cloudNewPassword').value,confirmPassword=$('cloudNewPasswordConfirm').value;
+  if(password.length<6)return alert('새 비밀번호는 6자리 이상으로 입력해주세요.');
+  if(password!==confirmPassword)return alert('새 비밀번호 확인이 일치하지 않습니다.');
+  setCloudUi('wait','새 비밀번호를 저장하는 중입니다.');
+  const {data,error}=await cloudClient.auth.updateUser({password});
+  if(error){setCloudUi('error',error.message);return alert('비밀번호 변경 실패: '+error.message);}
+  $('cloudNewPassword').value='';$('cloudNewPasswordConfirm').value='';$('cloudRecoveryPanel').classList.add('hidden');
+  if(location.hash)history.replaceState(null,'',location.pathname+location.search);
+  await onCloudUser(data.user);
+  alert('계정 비밀번호가 변경되었습니다. 이제 PC와 모바일에서 새 비밀번호로 로그인할 수 있습니다.');
+};
 $('cloudLogoutBtn').onclick=async()=>{if(cloudClient)await cloudClient.auth.signOut();if(cloudChannel&&cloudClient)cloudClient.removeChannel(cloudChannel);cloudChannel=null;cloudUser=null;await onCloudUser(null)};
 $('cloudPushBtn').onclick=()=>{if(confirm('이 기기의 현재 데이터를 클라우드 데이터로 저장할까요?'))pushCloud(true)};
 $('cloudPullBtn').onclick=()=>{if(confirm('클라우드 데이터를 이 기기에 적용할까요? 이 기기의 현재 데이터가 교체될 수 있습니다.'))pullCloud(true)};
@@ -276,10 +415,22 @@ async function hashPassword(password,salt){const enc=new TextEncoder(),material=
 function makeSalt(){const b=new Uint8Array(16);crypto.getRandomValues(b);return [...b].map(x=>x.toString(16).padStart(2,"0")).join("")}
 function hasPassword(){return !!localStorage.getItem(KEYS.pass)}
 async function verifyPassword(p){if(!hasPassword())return false;return await hashPassword(p,localStorage.getItem(KEYS.salt)||"")===localStorage.getItem(KEYS.pass)}
-function showLock(msg="비밀번호를 입력하세요."){if(!hasPassword())return;$("lockMessage").textContent=msg;$("unlockPassword").value="";$("lockScreen").classList.remove("hidden");$("unlockPassword").focus()}
-function hideLock(){$("lockScreen").classList.add("hidden");resetInactivity()}
+function showLock(msg="비밀번호를 입력하세요."){
+  if(!hasPassword())return;
+  document.body.classList.remove("privacy-boot");
+  document.body.classList.add("privacy-locked");
+  $("lockMessage").textContent=msg;
+  $("unlockPassword").value="";
+  $("lockScreen").classList.remove("hidden");
+  setTimeout(()=>$("unlockPassword").focus(),0);
+}
+function hideLock(){
+  $("lockScreen").classList.add("hidden");
+  document.body.classList.remove("privacy-boot","privacy-locked");
+  resetInactivity();
+}
 $("unlockBtn").onclick=async()=>{if(await verifyPassword($("unlockPassword").value))hideLock();else $("lockMessage").textContent="비밀번호가 맞지 않습니다."};$("unlockPassword").onkeydown=e=>{if(e.key==="Enter")$("unlockBtn").click()};$("lockNowBtn").onclick=()=>{if(hasPassword())showLock();else{goTab("settings");alert("먼저 비밀번호를 설정해주세요.")}};
-$("changePasswordBtn").onclick=async()=>{const cur=$("currentPassword").value,n=$("newPassword").value,c=$("confirmPassword").value;if(n.length<4)return alert("새 비밀번호는 4자리 이상으로 입력해주세요.");if(n!==c)return alert("새 비밀번호 확인이 일치하지 않습니다.");if(hasPassword()&&!(await verifyPassword(cur)))return alert("현재 비밀번호가 맞지 않습니다.");const s=makeSalt();localStorage.setItem(KEYS.salt,s);localStorage.setItem(KEYS.pass,await hashPassword(n,s));$("currentPassword").value=$("newPassword").value=$("confirmPassword").value="";resetInactivity();alert("비밀번호가 저장되었습니다.")};
+$("changePasswordBtn").onclick=async()=>{const cur=$("currentPassword").value,n=$("newPassword").value,c=$("confirmPassword").value;if(n.length<4)return alert("새 비밀번호는 4자리 이상으로 입력해주세요.");if(n!==c)return alert("새 비밀번호 확인이 일치하지 않습니다.");if(hasPassword()&&!(await verifyPassword(cur)))return alert("현재 비밀번호가 맞지 않습니다.");const s=makeSalt();localStorage.setItem(KEYS.salt,s);localStorage.setItem(KEYS.pass,await hashPassword(n,s));$("currentPassword").value=$("newPassword").value=$("confirmPassword").value="";resetInactivity();alert("비밀번호가 저장되었습니다. 이제 잠금 해제 전에는 가계부 내용이 전혀 보이지 않습니다.");showLock()};
 $("removePasswordBtn").onclick=async()=>{if(!hasPassword())return alert("설정된 비밀번호가 없습니다.");const cur=$("currentPassword").value||prompt("현재 비밀번호를 입력하세요.");if(!(await verifyPassword(cur)))return alert("현재 비밀번호가 맞지 않습니다.");if(!confirm("비밀번호 잠금을 해제할까요?"))return;localStorage.removeItem(KEYS.pass);localStorage.removeItem(KEYS.salt);clearTimeout(inactivityTimer);$("currentPassword").value="";alert("비밀번호가 해제되었습니다.")};
 function resetInactivity(){clearTimeout(inactivityTimer);const min=Number(localStorage.getItem(KEYS.lock)||0);if(min>0&&hasPassword())inactivityTimer=setTimeout(()=>showLock("자동 잠금되었습니다."),min*60000)}
 ["click","keydown","touchstart"].forEach(ev=>document.addEventListener(ev,()=>{if($("lockScreen").classList.contains("hidden"))resetInactivity()},{passive:true}));$("saveAutoLockBtn").onclick=()=>{localStorage.setItem(KEYS.lock,$("autoLockMinutes").value);resetInactivity();alert("자동 잠금 설정을 저장했습니다.")};
@@ -291,4 +442,4 @@ $("resetBtn").onclick=()=>{const text=prompt('거래·채무·자동화·자산 
 $("installBtn").hidden=true;window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredPrompt=e;$("installBtn").hidden=false});$("installBtn").onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$("installBtn").hidden=true}};if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 
 function renderAll(){renderSummary($("dashMonthInput").value);renderDashboard();renderTransactions();renderDebts();renderAutomation();renderAssets();refreshAutomationForm()}
-refreshAutomationForm();runAutomation(false);renderAll();resetInactivity();initCloud();if(hasPassword())showLock();
+refreshAutomationForm();runAutomation(false);refreshHeaderGreeting();updatePageHeader("dashboard");renderAll();resetInactivity();initCloud();if(hasPassword()){showLock()}else{document.body.classList.remove("privacy-boot","privacy-locked")}

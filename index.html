@@ -8,7 +8,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="privacy-boot">
 
 <div id="lockScreen" class="lock-screen hidden">
   <div class="lock-card">
@@ -21,13 +21,35 @@
 </div>
 
 <div class="app">
-<header>
-  <div><p class="eyebrow">MY HOUSEHOLD BUDGET</p><h1>나의 가계부</h1></div>
-  <div class="header-actions">
-    <span id="cloudHeaderStatus" class="sync-chip local">로컬 저장</span>
-    <button id="installBtn" class="ghost" hidden>앱으로 설치</button>
-    <button id="lockNowBtn" class="ghost">잠그기</button>
-  </div>
+<header class="split-header">
+  <section class="brand-panel">
+    <div class="brand-mark" aria-hidden="true">🏠</div>
+    <div>
+      <p class="eyebrow">MY HOUSEHOLD BUDGET</p>
+      <h1>나의 가계부</h1>
+      <p class="header-copy">오늘의 기록이 더 나은 내일을 만들어요.</p>
+    </div>
+  </section>
+
+  <section class="context-panel">
+    <div class="context-title-wrap">
+      <span id="pageHeaderIcon" class="context-icon" aria-hidden="true">🏡</span>
+      <div>
+        <p class="context-eyebrow">HOUSEHOLD BUDGET</p>
+        <h2 id="pageHeaderTitle">대시보드</h2>
+        <p id="pageHeaderSubtitle" class="context-subtitle">이번 달 가계 흐름을 한눈에 확인하세요.</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="greeting-chip">
+        <span id="todayDateText" class="greeting-date">오늘</span>
+        <strong id="todayGreetingText">좋은 하루 보내세요</strong>
+      </div>
+      <span id="cloudHeaderStatus" class="sync-chip local">로컬 저장</span>
+      <button id="installBtn" class="ghost" hidden>앱으로 설치</button>
+      <button id="lockNowBtn" class="ghost">잠그기</button>
+    </div>
+  </section>
 </header>
 
 <nav class="tabs">
@@ -38,6 +60,11 @@
   <button class="tab" data-tab="assets">자산 관리</button>
   <button class="tab" data-tab="settings">설정 / 백업</button>
 </nav>
+<section class="sidebar-note">
+  <div class="sidebar-note-icon">🌱</div>
+  <strong>꾸준한 기록이</strong>
+  <span>든든한 미래를 만들어요.</span>
+</section>
 
 <section id="dashboard" class="page active">
   <div class="month-row">
@@ -49,12 +76,12 @@
     <div class="card income"><span>이번 달 수입</span><strong id="incomeTotal">₩0</strong></div>
     <div class="card expense"><span>이번 달 지출</span><strong id="expenseTotal">₩0</strong></div>
     <div class="card balance"><span>이번 달 잔액</span><strong id="balanceTotal">₩0</strong></div>
-    <div class="card debt"><span>남은 채무</span><strong id="debtTotal">₩0</strong></div>
+    <div class="card debt debt-summary-card"><span>남은 채무</span><div class="card-value-row"><strong id="debtTotal">••••••</strong><button id="dashboardDebtCardToggleBtn" type="button" class="round-toggle-btn" aria-label="부채 보기"></button></div></div>
   </section>
 
   <section class="wealth-strip">
     <div><span>총자산</span><strong id="dashAssetsTotal">₩0</strong></div>
-    <div><span>총부채</span><strong id="dashLiabilitiesTotal">₩0</strong></div>
+    <div class="liability-card"><span>총부채</span><div class="card-value-row"><strong id="dashLiabilitiesTotal">••••••</strong><button id="dashboardDebtToggleBtn" type="button" class="round-toggle-btn" aria-label="부채 보기"></button></div></div>
     <div class="net-worth"><span>순자산</span><strong id="dashNetWorth">₩0</strong></div>
     <button class="mini-btn" data-go-tab="assets">자산 관리</button>
   </section>
@@ -91,49 +118,109 @@
   </section>
 </section>
 
-<section id="transactions" class="page">
-<div class="content-grid">
-<section class="panel form-panel">
-<h2>거래 내역 추가</h2>
-<form id="transactionForm">
-<div class="type-toggle">
-<label><input type="radio" name="type" value="expense" checked><span>지출</span></label>
-<label><input type="radio" name="type" value="income"><span>수입</span></label>
-</div>
-<label>날짜<input id="date" type="date" required></label>
-<label>카테고리<select id="category" required></select></label>
-<label>내용<input id="description" placeholder="예: 점심 식사" maxlength="60" required></label>
-<label>금액<input id="amount" type="number" min="1" step="1" placeholder="0" required></label>
-<label>결제수단<select id="payment"><option>신용카드</option><option>체크카드</option><option>현금</option><option>계좌이체</option><option>기타</option></select></label>
-<div class="form-actions">
-  <button id="transactionSubmitBtn" class="primary">거래 추가</button>
-  <button id="transactionCancelEditBtn" type="button" class="ghost hidden">수정 취소</button>
-</div>
-</form>
-</section>
-<section class="panel">
-<div class="list-head">
-  <div><h2>거래 내역</h2><p id="monthLabel"></p></div>
-  <div class="export-actions">
-    <button id="exportFilteredCsvBtn" class="mini-btn">필터 결과 CSV</button>
-    <button id="exportAllCsvBtn" class="mini-btn">전체 CSV</button>
+<section id="transactions" class="page mockup-page">
+  <div class="tx-search-shell panel">
+    <div class="tx-search-top">
+      <input id="searchFilter" type="search" placeholder="거래 내용, 가게명, 메모로 검색해 보세요.">
+      <input id="monthFilter" type="month">
+      <label class="inline-check tx-all-check"><input id="allMonthsFilter" type="checkbox"><span>전체 기간</span></label>
+    </div>
+    <div class="tx-search-bottom advanced-filters">
+      <select id="typeFilter"><option value="all">전체 거래 유형</option><option value="expense">지출</option><option value="income">수입</option></select>
+      <select id="categoryFilter"><option value="all">전체 카테고리</option></select>
+      <select id="paymentFilter"><option value="all">전체 결제수단</option><option>신용카드</option><option>체크카드</option><option>현금</option><option>계좌이체</option><option>기타</option></select>
+      <input id="minAmountFilter" type="number" min="0" step="1" placeholder="최소 금액">
+      <input id="maxAmountFilter" type="number" min="0" step="1" placeholder="최대 금액">
+      <button id="resetTransactionFiltersBtn" type="button" class="mini-btn">필터 초기화</button>
+    </div>
   </div>
-</div>
-<div class="advanced-filters">
-  <input id="searchFilter" type="search" placeholder="내용 · 카테고리 · 결제수단 검색">
-  <input id="monthFilter" type="month">
-  <label class="inline-check"><input id="allMonthsFilter" type="checkbox"><span>전체 기간</span></label>
-  <select id="typeFilter"><option value="all">수입/지출 전체</option><option value="expense">지출</option><option value="income">수입</option></select>
-  <select id="categoryFilter"><option value="all">카테고리 전체</option></select>
-  <select id="paymentFilter"><option value="all">결제수단 전체</option><option>신용카드</option><option>체크카드</option><option>현금</option><option>계좌이체</option><option>기타</option></select>
-  <input id="minAmountFilter" type="number" min="0" step="1" placeholder="최소 금액">
-  <input id="maxAmountFilter" type="number" min="0" step="1" placeholder="최대 금액">
-  <button id="resetTransactionFiltersBtn" type="button" class="mini-btn">필터 초기화</button>
-</div>
-<div id="empty" class="empty">거래 내역이 없습니다.</div>
-<div id="transactionList" class="transactions"></div>
-</section>
-</div>
+
+  <div class="tx-summary-cards">
+    <div class="card stat income-card"><div class="stat-icon">↓</div><div><span>이번 달 수입</span><strong id="txIncomeSummary">0원</strong><small id="txIncomeCompare">기본 수입 요약</small></div></div>
+    <div class="card stat expense-card"><div class="stat-icon">↑</div><div><span>이번 달 지출</span><strong id="txExpenseSummary">0원</strong><small id="txExpenseCompare">기본 지출 요약</small></div></div>
+    <div class="card stat balance-card"><div class="stat-icon">▣</div><div><span>이번 달 잔액</span><strong id="txBalanceSummary">0원</strong><small id="txBalanceMeta">수입 - 지출</small></div></div>
+    <div class="card stat count-card"><div class="stat-icon">≡</div><div><span>거래 내역 수</span><strong id="txCountSummary">0건</strong><small id="txCountMeta">현재 필터 결과</small></div></div>
+  </div>
+
+  <div class="tx-layout">
+    <div class="tx-main-column">
+      <section class="panel tx-table-panel">
+        <div class="list-head tx-table-head">
+          <div class="title-with-icon"><span class="section-icon" aria-hidden="true">🧾</span><div><h2>거래 내역</h2><p id="monthLabel"></p></div></div>
+          <div class="export-actions">
+            <button id="jumpToFormBtn" class="primary-small-btn">+ 거래 추가</button>
+            <button id="exportFilteredCsvBtn" class="mini-btn">필터 결과 CSV</button>
+            <button id="exportAllCsvBtn" class="mini-btn">전체 CSV</button>
+          </div>
+        </div>
+        <div id="empty" class="empty">거래 내역이 없습니다.</div>
+        <div class="tx-table-wrap" id="transactionTableWrap">
+          <table class="tx-table">
+            <thead>
+              <tr>
+                <th>날짜</th>
+                <th>내용</th>
+                <th>카테고리</th>
+                <th>구분</th>
+                <th>금액</th>
+                <th>결제수단</th>
+                <th>메모</th>
+                <th>관리</th>
+              </tr>
+            </thead>
+            <tbody id="transactionTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel tx-form-panel" id="transactionFormPanel">
+        <div class="section-title-row">
+          <div>
+            <h2 id="transactionFormTitle">거래 내역 추가</h2>
+            <p class="small">수입과 지출을 기록하고 수정할 수 있어요.</p>
+          </div>
+        </div>
+        <form id="transactionForm">
+          <div class="type-toggle">
+            <label><input type="radio" name="type" value="expense" checked><span>지출</span></label>
+            <label><input type="radio" name="type" value="income"><span>수입</span></label>
+          </div>
+          <div class="tx-form-grid">
+            <label>날짜<input id="date" type="date" required></label>
+            <label>카테고리<select id="category" required></select></label>
+            <label class="tx-form-span-2">내용<input id="description" placeholder="예: 점심 식사" maxlength="60" required></label>
+            <label>금액<input id="amount" type="number" min="1" step="1" placeholder="0" required></label>
+            <label>결제수단<select id="payment"><option>신용카드</option><option>체크카드</option><option>현금</option><option>계좌이체</option><option>기타</option></select></label>
+          </div>
+          <div class="form-actions">
+            <button id="transactionSubmitBtn" class="primary">거래 추가</button>
+            <button id="transactionCancelEditBtn" type="button" class="ghost hidden">수정 취소</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <aside class="tx-side-column">
+      <section class="panel tx-chart-panel">
+        <div class="panel-title-row"><h2>카테고리별 지출 비율</h2><button type="button" class="mini-icon-btn" aria-label="more">⋯</button></div>
+        <div class="tx-donut-area">
+          <div id="expenseDonut" class="tx-donut"></div>
+          <div class="tx-donut-center"><span>총 지출</span><strong id="txTotalExpenseCenter">0원</strong></div>
+        </div>
+        <div id="categoryLegend" class="tx-legend"></div>
+      </section>
+
+      <section class="panel tx-top-panel">
+        <h2>이번 달 주요 항목</h2>
+        <div class="tx-top-tabs">
+          <button id="topExpenseTab" type="button" class="primary-small-btn active">지출 TOP 5</button>
+          <button id="topIncomeTab" type="button" class="mini-btn">수입 TOP 5</button>
+        </div>
+        <ol id="topCategoryList" class="tx-top-list"></ol>
+        <div class="tx-tip-box">작은 지출도 기록하는 습관이 큰 변화를 만듭니다.</div>
+      </section>
+    </aside>
+  </div>
 </section>
 
 <section id="debts" class="page">
@@ -151,7 +238,7 @@
 </form>
 </section>
 <section class="panel">
-<div class="debt-head"><div><h2>내 채무</h2><p>상환을 입력하면 잔여 원금이 자동으로 줄어듭니다.</p></div><strong id="allDebtTotal">₩0</strong></div>
+<div class="debt-head"><div><h2>내 채무</h2><p>상환을 입력하면 잔여 원금이 자동으로 줄어듭니다.</p></div><div class="debt-head-total"><strong id="allDebtTotal">••••••</strong><button id="debtPageToggleBtn" type="button" class="round-toggle-btn" aria-label="부채 보기"></button></div></div>
 <div id="debtList"></div>
 <div id="debtEmpty" class="empty">등록된 채무가 없습니다.</div>
 </section>
@@ -216,7 +303,7 @@
 <section id="assets" class="page">
   <section class="asset-summary summary-3">
     <div class="card asset"><span>총자산</span><strong id="assetTotal">₩0</strong></div>
-    <div class="card debt"><span>총부채</span><strong id="assetDebtTotal">₩0</strong></div>
+    <div class="card debt asset-debt-card"><span>총부채</span><div class="card-value-row"><strong id="assetDebtTotal">••••••</strong><button id="assetDebtToggleBtn" type="button" class="round-toggle-btn" aria-label="부채 보기"></button></div></div>
     <div class="card balance"><span>순자산</span><strong id="netWorthTotal">₩0</strong></div>
   </section>
 
@@ -306,8 +393,20 @@
   <div class="cloud-actions">
     <button id="cloudSignUpBtn" class="mini-btn">계정 만들기</button>
     <button id="cloudLoginBtn" class="primary-small-btn">로그인</button>
+    <button id="cloudForgotPasswordBtn" class="mini-btn">비밀번호를 잊으셨나요?</button>
     <button id="cloudLogoutBtn" class="mini-btn hidden">로그아웃</button>
     <label class="inline-check sync-toggle"><input id="cloudAutoSync" type="checkbox"><span>자동 실시간 동기화</span></label>
+  </div>
+  <div id="cloudRecoveryPanel" class="cloud-recovery hidden">
+    <div>
+      <strong>새 계정 비밀번호 설정</strong>
+      <p>비밀번호 재설정 이메일의 링크로 들어온 경우 새 비밀번호를 입력하세요.</p>
+    </div>
+    <div class="cloud-recovery-grid">
+      <label>새 비밀번호<input id="cloudNewPassword" type="password" autocomplete="new-password" placeholder="6자리 이상"></label>
+      <label>새 비밀번호 확인<input id="cloudNewPasswordConfirm" type="password" autocomplete="new-password" placeholder="한 번 더 입력"></label>
+    </div>
+    <button id="cloudUpdatePasswordBtn" class="primary-small-btn">새 비밀번호 저장</button>
   </div>
   <div id="cloudUserInfo" class="cloud-user hidden"></div>
   <div class="cloud-sync-actions">
